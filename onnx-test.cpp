@@ -131,12 +131,21 @@ std::vector<std::string> readLabels(std::string& labelFilepath)
 int main(int argc, char* argv[])
 {
     const int64_t batchSize = 1;
+    bool useCUDA{true};
 
     std::string model_file = argv[1];
     std::string image_path = argv[2];
     std::string label_path = argv[3];
+    int num_threads = 1;
+    if (argc > 4) {
+        num_threads = atoi(argv[4]);
+        if (num_threads < 0) num_threads = -num_threads;
+        else useCUDA = false;
+    }
 
-    int num_threads = argc > 4? atoi(argv[4]) : 1;
+    if (useCUDA) std::cout << "Inference Execution Provider: CUDA" << std::endl;
+    else std::cout << "Inference Execution Provider: CPU" << std::endl;
+
     int repeat_loop = argc > 5? atoi(argv[5]) : 100;
     int inter_threads = argc > 6? atoi(argv[6]) : 1;
     int warmup_loop = argc > 7? atoi(argv[7]) : 10;
@@ -167,6 +176,28 @@ int main(int argc, char* argv[])
         ExecutionMode::ORT_PARALLEL);
 
     sessionOptions.SetInterOpNumThreads(inter_threads);
+
+    if (useCUDA)
+    {
+        // Using CUDA backend
+        // https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html
+        // https://github.com/microsoft/onnxruntime/blob/v1.8.2/include/onnxruntime/core/session/onnxruntime_cxx_api.h#L329
+        /*
+        OrtCUDAProviderOptions cuda_options{};
+        //cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchDefault; //OrtCudnnConvAlgoSearch();
+        sessionOptions.AppendExecutionProvider_CUDA(cuda_options);
+        */
+        auto api = Ort::GetApi();
+        OrtCUDAProviderOptionsV2* cuda_options = nullptr;
+        Ort::ThrowOnError(api.CreateCUDAProviderOptions(&cuda_options));
+        //std::vector<const char*> keys{"device_id","cudnn_conv_algo_search"};
+        //std::vector<const char*> values{"0", "DEFAULT"}; //OrtCudnnConvAlgoSearchExhaustive
+        //std::vector<const char*> keys{"cudnn_conv1d_pad_to_nc1d"};
+        //std::vector<const char*> values{"0"};
+        //Ort::ThrowOnError(api.UpdateCUDAProviderOptions(cuda_options, keys.data(), values.data(), keys.size()));
+        sessionOptions.AppendExecutionProvider_CUDA_V2(*cuda_options);
+        api.ReleaseCUDAProviderOptions(cuda_options);
+    }
 
     Ort::Session session(env, modelFilepath.c_str(), sessionOptions);
 
