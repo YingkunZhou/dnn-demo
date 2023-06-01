@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/${HOME}/work/dnn-demo/TensorRT_sample",
+                "/${HOME}/work/onnxruntime/include/onnxruntime/core/session",
+                "/${HOME}/miniforge3/envs/py3.8/lib/python3.8/site-packages/torch/include",
+                "/${HOME}/miniforge3/envs/py3.8/include/opencv4",
+                "/usr/local/cuda/targets/aarch64-linux/include",
+                "/usr/include/aarch64-linux-gnu"
+
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-arm64"
+        }
+    ],
+    "version": 4
+}
