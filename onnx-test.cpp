@@ -1,6 +1,7 @@
 // https://github.com/microsoft/onnxruntime/blob/v1.8.2/csharp/test/Microsoft.ML.OnnxRuntime.EndToEndTests.Capi/CXX_Api_Sample.cpp
 // https://github.com/microsoft/onnxruntime/blob/v1.8.2/include/onnxruntime/core/session/onnxruntime_cxx_api.h
 #include <onnxruntime_cxx_api.h>
+#include <../providers/tensorrt/tensorrt_provider_factory.h>
 
 #include <opencv2/dnn/dnn.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -131,19 +132,25 @@ std::vector<std::string> readLabels(std::string& labelFilepath)
 int main(int argc, char* argv[])
 {
     const int64_t batchSize = 1;
-    bool useCUDA{true};
+    bool useCUDA{false};
+    bool useTRT{false};
 
     std::string model_file = argv[1];
     std::string image_path = argv[2];
     std::string label_path = argv[3];
+
     int num_threads = 1;
-    if (argc > 4) {
+    if (argc > 4)
+    {
         num_threads = atoi(argv[4]);
+        useTRT = num_threads == 0;
+        useCUDA = num_threads <= 0;
         if (num_threads < 0) num_threads = -num_threads;
-        else useCUDA = false;
+        else if (num_threads == 0) num_threads = 1;
     }
 
-    if (useCUDA) std::cout << "Inference Execution Provider: CUDA" << std::endl;
+    if (useTRT) std::cout << "Inference Execution Provider: TRT" << std::endl;
+    else if (useCUDA) std::cout << "Inference Execution Provider: CUDA" << std::endl;
     else std::cout << "Inference Execution Provider: CPU" << std::endl;
 
     int repeat_loop = argc > 5? atoi(argv[5]) : 100;
@@ -177,7 +184,14 @@ int main(int argc, char* argv[])
 
     sessionOptions.SetInterOpNumThreads(inter_threads);
 
-    if (useCUDA)
+    if (useTRT)
+    {
+        // OrtTensorRTProviderOptions trt_options{};
+        // sessionOptions.AppendExecutionProvider_TensorRT(trt_options);
+        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Tensorrt(sessionOptions, 0));
+        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sessionOptions, 0));
+    }
+    else if (useCUDA)
     {
         // Using CUDA backend
         // https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html
@@ -190,10 +204,8 @@ int main(int argc, char* argv[])
         auto api = Ort::GetApi();
         OrtCUDAProviderOptionsV2* cuda_options = nullptr;
         Ort::ThrowOnError(api.CreateCUDAProviderOptions(&cuda_options));
-        //std::vector<const char*> keys{"device_id","cudnn_conv_algo_search"};
-        //std::vector<const char*> values{"0", "DEFAULT"}; //OrtCudnnConvAlgoSearchExhaustive
-        //std::vector<const char*> keys{"cudnn_conv1d_pad_to_nc1d"};
-        //std::vector<const char*> values{"0"};
+        //std::vector<const char*> keys{"device_id","cudnn_conv_algo_search", "cudnn_conv1d_pad_to_nc1d"};
+        //std::vector<const char*> values{"0", "DEFAULT", "0"}; //OrtCudnnConvAlgoSearchExhaustive
         //Ort::ThrowOnError(api.UpdateCUDAProviderOptions(cuda_options, keys.data(), values.data(), keys.size()));
         sessionOptions.AppendExecutionProvider_CUDA_V2(*cuda_options);
         api.ReleaseCUDAProviderOptions(cuda_options);
